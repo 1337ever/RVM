@@ -5,11 +5,11 @@ use std::io::prelude::*;
 use std::path::Path;
 use std::io::BufReader;
 use std::io::Cursor;
-use byteorder::{ReadBytesExt, NativeEndian};
+use byteorder::{WriteBytesExt, ReadBytesExt, NativeEndian, BigEndian};
 
 pub struct Virtmachine {
     mem: Vec<u32>,
-    ip: usize, //instruction pointer
+    ip: u32, //instruction pointer
     ef: u32, //continue flag, execution stops if it equals 1
     zf: u32, //zero flag
     of: u32, //overflow flag
@@ -22,26 +22,11 @@ impl Virtmachine {
         debug!("Creating new Virtmachine with size {}", memsize);
         Virtmachine {
             mem: vec![0u32; memsize],
-            ip: 0usize,
+            ip: 0u32,
             ef: 0u32,
             zf: 0u32,
             of: 0u32,
         }
-    }
-
-    fn u32_to_u8_array(x: u32) -> [u8; 4] {
-        let b1: u8 = ((x >> 24) & 0xff) as u8;
-        let b2: u8 = ((x >> 16) & 0xff) as u8;
-        let b3: u8 = ((x >> 8) & 0xff) as u8;
-        let b4: u8 = (x & 0xff) as u8;
-        return [b1, b2, b3, b4]
-    }
-
-    fn u8_array_to_u32_le(array: &[u8; 4]) -> u32 {
-        ((array[0] as u32) << 0) +
-        ((array[1] as u32) << 8) +
-        ((array[2] as u32) << 16) +
-        ((array[3] as u32) << 24)
     }
 
     pub fn start(&mut self, filename: &str) {
@@ -59,7 +44,7 @@ impl Virtmachine {
 
         let mut buf_reader = BufReader::new(file);
         //read file into mem by u32 int
-        buf_reader.read_u32_into::<NativeEndian>(&mut self.mem[..]);
+        buf_reader.read_u32_into::<BigEndian>(&mut self.mem[..]);
         
         while self.ef != 1 {
             self.cycle();
@@ -70,9 +55,11 @@ impl Virtmachine {
 
     fn cycle(&mut self) {
         //complete one cycle of execution
-        let opcode = self.mem[self.ip];
-        debug!("Exec: [{:x}]:{:x}", self.ip, opcode);
-        let oparray = Virtmachine::u32_to_u8_array(opcode);
+        let opcode = self.mem[self.ip as usize];
+        debug!("Exec: [{:#010x}]:{:#010x}", self.ip, opcode);
+        //let oparray = Virtmachine::u32_to_u8_array(opcode);
+        let mut oparray = Vec::new();
+        oparray.write_u32::<BigEndian>(opcode).unwrap();
         match oparray[0] {
             0xff => self.op_eof(),
             0x01 => self.op_mov(oparray),
@@ -83,10 +70,22 @@ impl Virtmachine {
         }
     }
 
+    fn set_flag(&mut self, name: &str, value: u32) {
+        //set flag by its name as a &str
+        debug!("Setting flag {} to {:#010x}", name, value);
+        match name {
+            "ip" => self.ip = value,
+            "ef" => self.ef = value,
+            "zf" => self.zf = value,
+            "of" => self.of = value,
+            _ => debug!("Unknown flag"),
+        }
+    }
+
     fn set_mem(&mut self, index: usize, value: u32) {
         //set an area of memory to a value
         self.mem[index] = value;
-        debug!("Memset:\n [{:x}]:{:x}", index, value);
+        debug!("Memset:\n\t[{:#010x}]:{:#010x}", index, value);
     }
     fn get_mem(&self, index: usize) -> u32 {
         self.mem[index]
@@ -99,8 +98,8 @@ impl Virtmachine {
                 self.set_mem(index, result + value);
             }
             None => {
-                debug!("Overflow when adding {:x} to [{:x}]({:x})", value, index, self.get_mem(index));
-                self.of = 1;
+                debug!("Overflow when adding {:#010x} to [{:#010x}]({:#010x})", value, index, self.get_mem(index));
+                self.set_flag("of", 1);
             }
         }
     }
@@ -109,10 +108,13 @@ impl Virtmachine {
         match result.checked_sub(value) {
             Some(res) => {
                 self.set_mem(index, result - value);
+                if result - value == 0 {
+                    self.set_flag("zf", 1);
+                }
             }
             None => {
-                debug!("Overflow when subtracting {:x} from [{:x}]({:x})", value, index, self.get_mem(index));
-                self.of = 1;
+                debug!("Overflow when subtracting {:#010x} from [{:#010x}]({:#010x})", value, index, self.get_mem(index));
+                self.set_flag("of", 1);
             }
         }
     }
@@ -122,27 +124,26 @@ impl Virtmachine {
         debug!("\tEOF reached.");
         self.ef = 1;
     }
-    fn op_mov(&mut self, oparry: [u8; 4]) {
+    fn op_mov(&mut self, oparry: Vec<u8>) {
         //move value from one address into another
         
     }
-    fn op_str(&mut self, oparray: [u8; 4]) {
+    fn op_str(&mut self, oparray: Vec<u8>) {
         //store a literal constant into an address
-        //let store = Virtmachine::u8_array_to_u32_le(&[0x00, 0x00, oparray[2], oparray[3]]);
         let mut storebuf = Cursor::new(vec![0x00, 0x00, oparray[2], oparray[3]]);
-        let store = storebuf.read_u32::<NativeEndian>().unwrap();
+        let store = storebuf.read_u32::<BigEndian>().unwrap();
         self.set_mem(oparray[1] as usize, store);
     }
-    fn op_add(&mut self, oparray: [u8; 4]) {
+    fn op_add(&mut self, oparray: Vec<u8>) {
         let index = oparray[1] as usize;
-        //let value = Virtmachine::u8_array_to_u32_le(&[0x00, 0x00, oparray[2], oparray[3]]);
         let mut valbuf = Cursor::new(vec![0x00, 0x00, oparray[2], oparray[3]]);
-        let value = valbuf.read_u32::<NativeEndian>().unwrap();
+        let value = valbuf.read_u32::<BigEndian>().unwrap();
         self.add(index, value);
     }
-    fn op_sub(&mut self, oparray: [u8; 4]) {
+    fn op_sub(&mut self, oparray: Vec<u8>) {
         let index = oparray[1] as usize;
-        let value = Virtmachine::u8_array_to_u32_le(&[0x00, 0x00, oparray[2], oparray[3]]);
+        let mut valbuf = Cursor::new(vec![0x00, 0x00, oparray[2], oparray[3]]);
+        let value = valbuf.read_u32::<BigEndian>().unwrap();
         self.sub(index, value);
     }
 }
