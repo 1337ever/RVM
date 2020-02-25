@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 use std::io::BufReader;
+use std::io::Cursor;
 use byteorder::{ReadBytesExt, NativeEndian};
 
 pub struct Virtmachine {
@@ -76,6 +77,8 @@ impl Virtmachine {
             0xff => self.op_eof(),
             0x01 => self.op_mov(oparray),
             0x02 => self.op_str(oparray),
+            0x03 => self.op_add(oparray),
+            0x04 => self.op_sub(oparray),
             _ => debug!("Unrecognized opcode"),
         }
     }
@@ -93,7 +96,7 @@ impl Virtmachine {
         let mut result = self.get_mem(index);
         match result.checked_add(value) {
             Some(res) => {
-                self.set_mem(index, result);
+                self.set_mem(index, result + value);
             }
             None => {
                 debug!("Overflow when adding {:x} to [{:x}]({:x})", value, index, self.get_mem(index));
@@ -102,8 +105,16 @@ impl Virtmachine {
         }
     }
     fn sub(&mut self, index: usize, value: u32) {
-        let result = self.get_mem(index) - value;
-        self.set_mem(index, result);
+        let mut result = self.get_mem(index);
+        match result.checked_sub(value) {
+            Some(res) => {
+                self.set_mem(index, result - value);
+            }
+            None => {
+                debug!("Overflow when subtracting {:x} from [{:x}]({:x})", value, index, self.get_mem(index));
+                self.of = 1;
+            }
+        }
     }
     
     //Operations:
@@ -117,7 +128,21 @@ impl Virtmachine {
     }
     fn op_str(&mut self, oparray: [u8; 4]) {
         //store a literal constant into an address
-        let store = Virtmachine::u8_array_to_u32_le(&[0x00, 0x00, oparray[2], oparray[3]]);
+        //let store = Virtmachine::u8_array_to_u32_le(&[0x00, 0x00, oparray[2], oparray[3]]);
+        let mut storebuf = Cursor::new(vec![0x00, 0x00, oparray[2], oparray[3]]);
+        let store = storebuf.read_u32::<NativeEndian>().unwrap();
         self.set_mem(oparray[1] as usize, store);
+    }
+    fn op_add(&mut self, oparray: [u8; 4]) {
+        let index = oparray[1] as usize;
+        //let value = Virtmachine::u8_array_to_u32_le(&[0x00, 0x00, oparray[2], oparray[3]]);
+        let mut valbuf = Cursor::new(vec![0x00, 0x00, oparray[2], oparray[3]]);
+        let value = valbuf.read_u32::<NativeEndian>().unwrap();
+        self.add(index, value);
+    }
+    fn op_sub(&mut self, oparray: [u8; 4]) {
+        let index = oparray[1] as usize;
+        let value = Virtmachine::u8_array_to_u32_le(&[0x00, 0x00, oparray[2], oparray[3]]);
+        self.sub(index, value);
     }
 }
