@@ -1,4 +1,5 @@
 use std::env;
+use std::thread;
 
 extern crate hex;
 extern crate byteorder;
@@ -7,10 +8,31 @@ extern crate log;
 extern crate env_logger;
 
 mod vm;
+mod virtio;
 
 const DEFAULTMEMSIZE: usize = 500;
 
+struct virtual_machine {
+    //struct to hold all of the components of the VM
+    vm: vm::Virtmachine,
+    virtio: virtio::Virtio,
+}
+
+impl virtual_machine {
+    fn new() -> virtual_machine {
+        virtual_machine {
+            vm: vm::Virtmachine::new(DEFAULTMEMSIZE),
+            virtio: virtio::Virtio::new(),
+        }
+    }
+
+    fn run(&mut self, filename: &str) {
+        self.vm.run(filename);
+    }
+}
+
 fn main() {
+    env_logger::init();
 
     //parse arguments
     let args: Vec<String> = env::args().collect();
@@ -33,9 +55,8 @@ fn main() {
 
 fn vm_mode(filename: &str) {
     //Run the virtual machine
-    env_logger::init();
-    let mut main_machine = vm::Virtmachine::new(DEFAULTMEMSIZE); 
-    main_machine.start(filename);
+    let mut vm = virtual_machine::new();
+    vm.run(filename);
 }
 
 fn assembler_mode(filename: &str) {

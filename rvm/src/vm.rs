@@ -1,13 +1,15 @@
-use log::debug;
 use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 use std::io::BufReader;
 use std::io::Cursor;
+
 use byteorder::{WriteBytesExt, ReadBytesExt, NativeEndian, BigEndian};
+use log::debug;
 
 pub struct Virtmachine {
+    //Struct for the "CPU" of the VM
     mem: Vec<u32>,
     ip: u32, //instruction pointer
     ef: u32, //continue flag, execution stops if it equals 1
@@ -29,7 +31,7 @@ impl Virtmachine {
         }
     }
 
-    pub fn start(&mut self, filename: &str) {
+    pub fn run(&mut self, filename: &str) {
         //load a binary into mem and start the VM
         debug!("Starting virtual machine with size {}", self.mem.len());
         debug!("Attempting to load file {}", filename);
