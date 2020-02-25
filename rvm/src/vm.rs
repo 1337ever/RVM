@@ -5,6 +5,9 @@ use std::path::Path;
 use std::io::BufReader;
 use std::io::Cursor;
 
+use std::sync::mpsc;
+use std::sync::mpsc::{Receiver, Sender};
+
 use byteorder::{WriteBytesExt, ReadBytesExt, NativeEndian, BigEndian};
 use log::debug;
 
@@ -15,20 +18,26 @@ pub struct Virtmachine {
     ef: u32, //continue flag, execution stops if it equals 1
     zf: u32, //zero flag
     of: u32, //overflow flag
+    charsender: std::sync::mpsc::Sender<char>,
+    status_sender: std::sync::mpsc::Sender<u32>,
 }
 
 impl Virtmachine {
 
-    pub fn new(memsize: usize) -> Virtmachine {
+    pub fn new(memsize: usize) -> (Virtmachine, Receiver<char>, Receiver<u32>)  {
         //construct a new virtual machine
         debug!("Creating new Virtmachine with size {}", memsize);
-        Virtmachine {
+        let (ctx, crx) = mpsc::channel();
+        let (stx, srx) = mpsc::channel();
+        (Virtmachine {
             mem: vec![0u32; memsize],
             ip: 0u32,
             ef: 0u32,
             zf: 0u32,
             of: 0u32,
-        }
+            charsender: ctx,
+            status_sender: stx,
+        }, crx, srx)
     }
 
     pub fn run(&mut self, filename: &str) {
@@ -48,6 +57,7 @@ impl Virtmachine {
         //read file into mem by u32 int
         buf_reader.read_u32_into::<BigEndian>(&mut self.mem[..]);
 
+
         let mut cycles = 0;
         while self.ef != 1 {
             cycles += 1;
@@ -59,6 +69,7 @@ impl Virtmachine {
                 //active if the next instruction wishes to use it
                 self.zf = 0;
             }
+            
         }
 
     }
@@ -89,6 +100,7 @@ impl Virtmachine {
             0x05 => self.op_jmp(oparray),
             0x06 => self.op_jz(oparray),
             0x07 => self.op_cmp(oparray),
+            0x08 => self.op_prn(oparray),
             _ => debug!("Unrecognized operation"),
         }
     }
@@ -151,6 +163,7 @@ impl Virtmachine {
     fn op_eof(&mut self) {
         self.set_flag("ef", 1);
         debug!("\tEOF reached.");
+        self.status_sender.send(1).unwrap();
     }
     fn op_mov(&mut self, oparray: Vec<u8>) {
         //move value from one address into another
@@ -200,5 +213,8 @@ impl Virtmachine {
             None => self.set_flag("zf", 1),
             _ => (),
         }
+    }
+    fn op_prn(&mut self, oparray: Vec<u8>) {
+        self.charsender.send(oparray[1] as char).unwrap();
     }
 }
