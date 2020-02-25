@@ -45,12 +45,30 @@ impl Virtmachine {
         let mut buf_reader = BufReader::new(file);
         //read file into mem by u32 int
         buf_reader.read_u32_into::<BigEndian>(&mut self.mem[..]);
-        
+
+        let mut cycles = 0;
         while self.ef != 1 {
+            cycles += 1;
             self.cycle();
             self.ip += 1; //increment instruction pointer
+            if cycles %2 == 0 { 
+                //reset the zero flag on every other cycle
+                //this makes it so that the zero flag will remain
+                //active if the next instruction wishes to use it
+                self.zf = 0;
+            }
         }
 
+    }
+
+    pub fn print_mem(&self, start: usize, end: usize) {
+        //print a segment of memory for inspection
+        debug!("Memory slice {:#010x} to {:#010x}", start, end);
+        let mut i = start;
+        while i <= end {
+            debug!("[{:#010x}:{:#010x}]", i, self.mem[i]);
+            i += 1;
+        }
     }
 
     fn cycle(&mut self) {
@@ -64,9 +82,12 @@ impl Virtmachine {
             0xff => self.op_eof(),
             0x01 => self.op_mov(oparray),
             0x02 => self.op_str(oparray),
-            0x03 => self.op_add(oparray),
-            0x04 => self.op_sub(oparray),
-            _ => debug!("Unrecognized opcode"),
+            0x03 => self.op_adi(oparray),
+            0x04 => self.op_sui(oparray),
+            0x05 => self.op_jmp(oparray),
+            0x06 => self.op_jz(oparray),
+            0x07 => self.op_cmp(oparray),
+            _ => debug!("Unrecognized operation"),
         }
     }
 
@@ -80,6 +101,11 @@ impl Virtmachine {
             "of" => self.of = value,
             _ => debug!("Unknown flag"),
         }
+    }
+
+    fn compose_u32(array: Vec<u8>) -> u32 {
+        let mut buf = Cursor::new(vec![array[0], array[1], array[2], array[3]]);
+        buf.read_u32::<BigEndian>().unwrap()
     }
 
     fn set_mem(&mut self, index: usize, value: u32) {
@@ -121,29 +147,56 @@ impl Virtmachine {
     
     //Operations:
     fn op_eof(&mut self) {
+        self.set_flag("ef", 1);
         debug!("\tEOF reached.");
-        self.ef = 1;
     }
-    fn op_mov(&mut self, oparry: Vec<u8>) {
+    fn op_mov(&mut self, oparray: Vec<u8>) {
         //move value from one address into another
-        
+        let dest = oparray[1] as usize;
+        let srcvalue = self.get_mem(oparray[2] as usize);
+        self.set_mem(dest, srcvalue);
     }
     fn op_str(&mut self, oparray: Vec<u8>) {
         //store a literal constant into an address
-        let mut storebuf = Cursor::new(vec![0x00, 0x00, oparray[2], oparray[3]]);
-        let store = storebuf.read_u32::<BigEndian>().unwrap();
-        self.set_mem(oparray[1] as usize, store);
-    }
-    fn op_add(&mut self, oparray: Vec<u8>) {
         let index = oparray[1] as usize;
-        let mut valbuf = Cursor::new(vec![0x00, 0x00, oparray[2], oparray[3]]);
-        let value = valbuf.read_u32::<BigEndian>().unwrap();
+        let store = Virtmachine::compose_u32(vec![0x00, 0x00, oparray[2], oparray[3]]);
+        self.set_mem(index, store);
+    }
+    fn op_adi(&mut self, oparray: Vec<u8>) {
+        //add an inline value to an address
+        let index = oparray[1] as usize;
+        let value = Virtmachine::compose_u32(vec![0x00, 0x00, oparray[2], oparray[3]]);
         self.add(index, value);
     }
-    fn op_sub(&mut self, oparray: Vec<u8>) {
+    fn op_sui(&mut self, oparray: Vec<u8>) {
+        //subtract an inline value from an address
         let index = oparray[1] as usize;
-        let mut valbuf = Cursor::new(vec![0x00, 0x00, oparray[2], oparray[3]]);
-        let value = valbuf.read_u32::<BigEndian>().unwrap();
+        let value = Virtmachine::compose_u32(vec![0x00, 0x00, oparray[2], oparray[3]]);
         self.sub(index, value);
+    }
+    fn op_jmp(&mut self, oparray: Vec<u8>) {
+        //jump to an address
+        //the ip flag is set to the target address minus one because after the cycle finishes, the
+        //ip will be incremented automatically
+        let value = Virtmachine::compose_u32(vec![0x00, 0x00, 0x00, oparray[1] - 1]);
+        self.set_flag("ip", value);
+    }
+    fn op_jz(&mut self, oparray: Vec<u8>) {
+        //jump to an address if the result of the previous operation was zero
+        if self.zf == 1 {
+            self.op_jmp(oparray);
+        }
+    }
+    fn op_cmp(&mut self, oparray: Vec<u8>) {
+        //compare two numbers by subtraction and set zero flag
+        //without actually modifying any location in memory
+        //IMPORTANT: only takes two u8 as arguments, so the address of the second arg
+        //comes immediately after the first arg and is not padded
+        let x = self.get_mem(oparray[1] as usize);
+        let y = self.get_mem(oparray[2] as usize);
+        match x.checked_sub(y) {
+            None => self.set_flag("zf", 1),
+            _ => (),
+        }
     }
 }
