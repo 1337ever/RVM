@@ -40,9 +40,7 @@ impl Virtmachine {
         }, crx, srx)
     }
 
-    pub fn run(&mut self, filename: &str) {
-        //load a binary into mem and start the VM
-        debug!("Starting virtual machine with size {}", self.mem.len());
+    pub fn load(&mut self, filename: &str) {
         debug!("Attempting to load file {}", filename);
 
         let path = Path::new(filename);
@@ -56,6 +54,11 @@ impl Virtmachine {
         let mut buf_reader = BufReader::new(file);
         //read file into mem by u32 int
         buf_reader.read_u32_into::<BigEndian>(&mut self.mem[..]);
+    }
+
+    pub fn run(&mut self) {
+        //start the VM
+        debug!("Starting virtual machine with size {}", self.mem.len());
 
 
         let mut cycles = 0;

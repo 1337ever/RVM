@@ -91,8 +91,10 @@ fn vm_mode(filename: &str) {
     let (mut vm, vmbuf, vmctrl) = vm::Virtmachine::new(DEFAULTMEMSIZE);
     let mut virtio = virtio::Virtio::new(iorx, vmbuf);
 
+    vm.load(filename);
+
     let vmthread = thread::spawn(move ||{
-        vm.run(filename);
+        vm.run();
     });
     thread::spawn(move ||{
         while true {

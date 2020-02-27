@@ -26,7 +26,7 @@ impl Virtio {
                 break;
             }
             match self.textbuf.try_recv() {
-                Ok(v) => println!("out: {}", v),
+                Ok(v) => print!("{}", v),
                 Err(v) => (),
             };
         }
