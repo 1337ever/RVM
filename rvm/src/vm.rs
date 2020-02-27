@@ -41,13 +41,14 @@ impl Virtmachine {
     }
 
     pub fn load(&mut self, filename: &str) {
+        //load a binary into memory
         debug!("Attempting to load file {}", filename);
 
         let path = Path::new(filename);
         let display = path.display();
 
-        let mut file = match File::open(&path) {
-            Err(reason) => panic!("failed to open {}: {}", display, reason.description()),
+        let file = match File::open(&path) {
+            Err(reason) => panic!("failed to open {}: {}", display, reason.to_string()),
             Ok(file) => file,
         };
 
