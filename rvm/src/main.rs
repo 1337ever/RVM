@@ -1,7 +1,9 @@
-use std::env;
-use std::thread;
-use std::sync::mpsc;
-use std::time::Duration;
+use std::{
+    env,
+    thread,
+    sync::mpsc,
+    time::Duration,
+};
 
 extern crate hex;
 extern crate byteorder;
@@ -11,6 +13,7 @@ extern crate env_logger;
 
 mod vm;
 mod virtio;
+mod assembler;
 
 const DEFAULTMEMSIZE: usize = 500;
 
@@ -80,4 +83,5 @@ fn vm_mode(filename: &str) {
 
 fn assembler_mode(filename: &str) {
     //Run the assembler
+    let mut asm = assembler::Assembler::new(filename);
 }

@@ -1,3 +1,5 @@
+//some stuff to have asynchronous i/o to/from the vm
+
 pub struct Virtio {
     textbuf: std::sync::mpsc::Receiver<char>, //one-char buffer for text output
     ctrl_channel: std::sync::mpsc::Receiver<u32>,

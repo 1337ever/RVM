@@ -1,12 +1,20 @@
-use std::error::Error;
-use std::fs::File;
-use std::io::prelude::*;
-use std::path::Path;
-use std::io::BufReader;
-use std::io::Cursor;
+//the core of the vm. runs binary files.
 
-use std::sync::mpsc;
-use std::sync::mpsc::{Receiver, Sender};
+use std::{
+    fs::File,
+    path::Path,
+    io::{
+        BufReader,
+        Cursor,
+    },
+    sync::{
+        mpsc::{
+            self,
+            Receiver,
+            Sender
+        },
+    },
+};
 
 use byteorder::{WriteBytesExt, ReadBytesExt, NativeEndian, BigEndian};
 use log::debug;
