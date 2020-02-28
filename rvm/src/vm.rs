@@ -217,10 +217,8 @@ impl Virtmachine {
     fn op_cmp(&mut self, oparray: Vec<u8>) {
         //compare two numbers by subtraction and set zero flag
         //without actually modifying any location in memory
-        //IMPORTANT: only takes two u8 as arguments, so the address of the second arg
-        //comes immediately after the first arg and is not padded
         let x = self.get_mem(oparray[1] as usize);
-        let y = self.get_mem(oparray[2] as usize);
+        let y = self.get_mem(oparray[3] as usize);
         match x.checked_sub(y) {
             None => self.set_flag("zf", 1),
             _ => (),

@@ -7,8 +7,10 @@ use std::{
         BufReader,
         Cursor,
     },
+    path::Path,
+    error::Error,
 };
-use byteorder::{WriteBytesExt, ReadBytesExt, NativeEndian, BigEndian};
+use byteorder::{WriteBytesExt, ReadBytesExt, NativeEndian, BigEndian, LittleEndian};
 
 //definitions for operations
 const RAWDEFS: &str = r#"
@@ -90,6 +92,7 @@ struct Element {
 impl Element {
     fn new(defs: &Vec<Operation>, ops: Vec<&str>) -> Element {
         let mut top: u8 = 0; 
+        let mut nops = vec![0; 4];
 
         let mut tops = ops.to_vec();
         tops.remove(0);
@@ -99,11 +102,13 @@ impl Element {
                 top = def.code;
             }
         }
-        let nops: Vec<u8> = tops.iter().map(|x| 
-            x.parse::<u8>().unwrap()
-        ).collect();
+        if tops.len() > 0 {
+            nops = tops.iter().map(|x| 
+                x.parse::<u8>().unwrap()
+            ).collect();
+        }
 
-        let tcomposed = compose_u32(vec![top, 0, nops[0], nops[1]]);
+        let tcomposed = compose_u32(vec![top, nops[0], 0, nops[1]]);
         
         Element {
             op: top,
@@ -112,6 +117,7 @@ impl Element {
         }
     }
 }
+
 
 pub struct Assembler {
     stringfile: Vec<String>, //a vector of strings from the input file
@@ -140,14 +146,31 @@ impl Assembler {
     }
 
     pub fn gen_binary(&mut self) {
-        let mut i = 0;
+        let mut i = 0i8;
         for line in &self.stringfile {
             let result = self.assemble(line);
             match result {
-                Some(v) => self.binary.insert(i, v),
-                None => (),
+                Some(v) => self.binary.insert(i as usize, v),
+                None => i -= 1,
             }            
             i += 1;
+        }
+        let mut bytesvec = Vec::new();
+        for v in &self.binary {
+            let mut tempvec = Vec::new();
+            tempvec.write_u32::<LittleEndian>(*v).unwrap();
+            bytesvec.append(&mut tempvec);
+        }
+
+        let path = Path::new("a.out");
+        let display = path.display();
+        let mut file = match File::create(&path) {
+            Err(reason) => panic!("Failed to create file {}: {}", display, reason.description()),
+            Ok(file) => file,
+        };
+        match file.write_all(bytesvec.as_slice()) {
+            Err(reason) => panic!("Failed to write to {}: {}", display, reason.description()),
+            Ok(_) => println!("Wrote binary to {}", display),
         }
     }
 
@@ -169,8 +192,9 @@ impl Assembler {
             return None
         }
 
-        let element = Element::new(&self.definitions, split);
+        let elem = Element::new(&self.definitions, split);
 
-        Some(element.composed)
+
+        Some(elem.composed)
     }
 }
