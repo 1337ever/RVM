@@ -10,7 +10,14 @@ use std::{
     path::Path,
     error::Error,
 };
-use byteorder::{WriteBytesExt, ReadBytesExt, NativeEndian, BigEndian, LittleEndian};
+use byteorder::{
+    WriteBytesExt, 
+    ReadBytesExt, 
+    NativeEndian, 
+    BigEndian, 
+    LittleEndian
+};
+use regex::Regex;
 
 //definitions for operations
 const RAWDEFS: &str = r#"
@@ -155,6 +162,8 @@ impl Assembler {
             }            
             i += 1;
         }
+
+        //turn vec of u32 into slice of u8
         let mut bytesvec = Vec::new();
         for v in &self.binary {
             let mut tempvec = Vec::new();
@@ -177,22 +186,18 @@ impl Assembler {
     //assemble one line
     fn assemble(&self, input: &String) -> Option<u32> {
         debug!("Assembling \"{}\"", input);
-        let temp: Vec<&str> = input.split(" ").collect();
-        let mut split = Vec::new();
-        //remove comments
-        for seg in temp {
-            if !seg.starts_with(';') {
-                split.push(seg);
-            }
-        }
+        let re = Regex::new(r";.*").unwrap(); 
+        let t2 = re.replace_all(input, "");
+        let mut temp: Vec<&str> = t2.split(" ").collect();
+        temp.remove_item(&"");
 
-        debug!("{:?}", split);
+        debug!("{:?}", temp);
 
-        if split.len() == 0 {
+        if temp.len() == 0 {
             return None
         }
 
-        let elem = Element::new(&self.definitions, split);
+        let elem = Element::new(&self.definitions, temp);
 
 
         Some(elem.composed)

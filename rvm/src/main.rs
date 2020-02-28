@@ -1,3 +1,5 @@
+#![feature(vec_remove_item)]
+
 use std::{
     env,
     thread,
@@ -5,8 +7,8 @@ use std::{
     time::Duration,
 };
 
-extern crate hex;
 extern crate byteorder;
+extern crate regex;
 #[macro_use]
 extern crate log;
 extern crate env_logger;

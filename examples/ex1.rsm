@@ -1,3 +1,8 @@
-;test
-str 255 66
-eof
+str 255 10 ;store value to compare to 
+adi 254 1 ;increment counter by 1
+cmp 255 254 ;compare counter and reference
+jz 6 0 ;if they're equal, jump to address 6
+prn 65 0 ;print
+jmp 1 0 ;jump to address 1
+prn 10 0 ;print newline
+eof ;exit
