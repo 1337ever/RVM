@@ -5,8 +5,10 @@ use std::{
     io::{
         prelude::*,
         BufReader,
+        Cursor,
     },
 };
+use byteorder::{WriteBytesExt, ReadBytesExt, NativeEndian, BigEndian};
 
 //definitions for operations
 const RAWDEFS: &str = r#"
@@ -60,16 +62,55 @@ const RAWDEFS: &str = r#"
         ]
     }"#;
 
+fn compose_u32(array: Vec<u8>) -> u32 {
+    let mut buf = Cursor::new(vec![array[0], array[1], array[2], array[3]]);
+    buf.read_u32::<BigEndian>().unwrap()
+}
+
+//struct to hold some data about different operations
 #[derive(Deserialize)]
 struct Operation {
     name: String, //a string for the name of the operation
     code: u8, //the "number" in machine code that this op corresponds to
-    args: u8, //the number of arguments this operation takes
+    args: usize, //the number of arguments this operation takes
 }
 
 #[derive(Deserialize)]
 struct Obj {
     items: Vec<Operation>,
+}
+
+
+struct Element {
+    op: u8,
+    args: Vec<u8>,
+    composed: u32
+}
+
+impl Element {
+    fn new(defs: &Vec<Operation>, ops: Vec<&str>) -> Element {
+        let mut top: u8 = 0; 
+
+        let mut tops = ops.to_vec();
+        tops.remove(0);
+
+        for def in defs {
+            if def.name == ops[0] {
+                top = def.code;
+            }
+        }
+        let nops: Vec<u8> = tops.iter().map(|x| 
+            x.parse::<u8>().unwrap()
+        ).collect();
+
+        let tcomposed = compose_u32(vec![top, 0, nops[0], nops[1]]);
+        
+        Element {
+            op: top,
+            args: nops,
+            composed: tcomposed
+        }
+    }
 }
 
 pub struct Assembler {
@@ -96,5 +137,40 @@ impl Assembler {
             binary: Vec::new(),
             definitions: defs.items,
         }
+    }
+
+    pub fn gen_binary(&mut self) {
+        let mut i = 0;
+        for line in &self.stringfile {
+            let result = self.assemble(line);
+            match result {
+                Some(v) => self.binary.insert(i, v),
+                None => (),
+            }            
+            i += 1;
+        }
+    }
+
+    //assemble one line
+    fn assemble(&self, input: &String) -> Option<u32> {
+        debug!("Assembling \"{}\"", input);
+        let temp: Vec<&str> = input.split(" ").collect();
+        let mut split = Vec::new();
+        //remove comments
+        for seg in temp {
+            if !seg.starts_with(';') {
+                split.push(seg);
+            }
+        }
+
+        debug!("{:?}", split);
+
+        if split.len() == 0 {
+            return None
+        }
+
+        let element = Element::new(&self.definitions, split);
+
+        Some(element.composed)
     }
 }

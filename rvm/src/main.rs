@@ -88,4 +88,5 @@ fn vm_mode(filename: &str) {
 fn assembler_mode(filename: &str) {
     //Run the assembler
     let mut asm = assembler::Assembler::new(filename);
+    asm.gen_binary();
 }
