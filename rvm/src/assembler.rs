@@ -8,12 +8,10 @@ use std::{
         Cursor,
     },
     path::Path,
-    error::Error,
 };
 use byteorder::{
     WriteBytesExt, 
     ReadBytesExt, 
-    NativeEndian, 
     BigEndian, 
     LittleEndian
 };
@@ -67,6 +65,16 @@ const RAWDEFS: &str = r#"
                 "name": "prn",
                 "code": 8,
                 "args": 1
+            },
+            {
+                "name": "mul",
+                "code": 9,
+                "args": 2
+            },
+            {
+                "name": "div",
+                "code": 10,
+                "args": 2
             }
         ]
     }"#;
@@ -174,11 +182,11 @@ impl Assembler {
         let path = Path::new("a.out");
         let display = path.display();
         let mut file = match File::create(&path) {
-            Err(reason) => panic!("Failed to create file {}: {}", display, reason.description()),
+            Err(reason) => panic!("Failed to create file {}: {}", display, reason.to_string()),
             Ok(file) => file,
         };
         match file.write_all(bytesvec.as_slice()) {
-            Err(reason) => panic!("Failed to write to {}: {}", display, reason.description()),
+            Err(reason) => panic!("Failed to write to {}: {}", display, reason.to_string()),
             Ok(_) => println!("Wrote binary to {}", display),
         }
     }
@@ -186,6 +194,8 @@ impl Assembler {
     //assemble one line
     fn assemble(&self, input: &String) -> Option<u32> {
         debug!("Assembling \"{}\"", input);
+
+        //remove comments and split string
         let re = Regex::new(r";.*").unwrap(); 
         let t2 = re.replace_all(input, "");
         let mut temp: Vec<&str> = t2.split(" ").collect();

@@ -11,12 +11,15 @@ use std::{
         mpsc::{
             self,
             Receiver,
-            Sender
         },
     },
 };
 
-use byteorder::{WriteBytesExt, ReadBytesExt, NativeEndian, BigEndian};
+use byteorder::{
+    WriteBytesExt, 
+    ReadBytesExt, 
+    BigEndian
+};
 use log::debug;
 
 pub struct Virtmachine {
@@ -75,12 +78,6 @@ impl Virtmachine {
             cycles += 1;
             self.cycle();
             self.ip += 1; //increment instruction pointer
-            if cycles %2 == 0 { 
-                //reset the zero flag on every other cycle
-                //this makes it so that the zero flag will remain
-                //active if the next instruction wishes to use it
-                self.zf = 0;
-            }
             
         }
 
@@ -113,6 +110,8 @@ impl Virtmachine {
             0x06 => self.op_jz(oparray),
             0x07 => self.op_cmp(oparray),
             0x08 => self.op_prn(oparray),
+            0x09 => self.op_mul(oparray),
+            0x0A => self.op_div(oparray),
             _ => debug!("Unrecognized operation"),
         }
     }
@@ -144,9 +143,9 @@ impl Virtmachine {
     }
 
     fn add(&mut self, index: usize, value: u32) {
-        let mut result = self.get_mem(index);
+        let result = self.get_mem(index);
         match result.checked_add(value) {
-            Some(res) => {
+            Some(_) => {
                 self.set_mem(index, result + value);
             }
             None => {
@@ -156,9 +155,9 @@ impl Virtmachine {
         }
     }
     fn sub(&mut self, index: usize, value: u32) {
-        let mut result = self.get_mem(index);
+        let result = self.get_mem(index);
         match result.checked_sub(value) {
-            Some(res) => {
+            Some(_) => {
                 self.set_mem(index, result - value);
                 if result - value == 0 {
                     self.set_flag("zf", 1);
@@ -206,6 +205,7 @@ impl Virtmachine {
         //the ip flag is set to the target address minus one because after the cycle finishes, the
         //ip will be incremented automatically
         let value = Virtmachine::compose_u32(vec![0x00, 0x00, 0x00, oparray[1] - 1]);
+        debug!("Jumping to {:#010x}", value+1);
         self.set_flag("ip", value);
     }
     fn op_jz(&mut self, oparray: Vec<u8>) {
@@ -217,6 +217,7 @@ impl Virtmachine {
     fn op_cmp(&mut self, oparray: Vec<u8>) {
         //compare two numbers by subtraction and set zero flag
         //without actually modifying any location in memory
+        self.set_flag("zf", 0);
         let x = self.get_mem(oparray[1] as usize);
         let y = self.get_mem(oparray[3] as usize);
         match x.checked_sub(y) {
@@ -225,6 +226,22 @@ impl Virtmachine {
         }
     }
     fn op_prn(&mut self, oparray: Vec<u8>) {
-        self.charsender.send(oparray[1] as char).unwrap();
+        let fullval = self.get_mem(oparray[1] as usize);
+        let schar = fullval.to_le_bytes()[0];
+        self.charsender.send(schar as char).unwrap();
+    }
+    fn op_mul(&mut self, oparray: Vec<u8>) {
+        //multiply the value in one address by the value in another address
+        let dest = oparray[1] as usize;
+        let destval = self.get_mem(oparray[1] as usize);
+        let src = self.get_mem(oparray[3] as usize);
+        self.set_mem(dest, destval*src);
+    }
+    fn op_div(&mut self, oparray: Vec<u8>) {
+        //divide the value in one address by the value in another address
+        let dest = oparray[1] as usize;
+        let destval = self.get_mem(oparray[1] as usize);
+        let src = self.get_mem(oparray[3] as usize);
+        self.set_mem(dest, destval/src);
     }
 }
