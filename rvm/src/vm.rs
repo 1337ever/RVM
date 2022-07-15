@@ -2,24 +2,12 @@
 
 use std::{
     fs::File,
+    io::{BufReader, Cursor},
     path::Path,
-    io::{
-        BufReader,
-        Cursor,
-    },
-    sync::{
-        mpsc::{
-            self,
-            Receiver,
-        },
-    },
+    sync::mpsc::{self, Receiver},
 };
 
-use byteorder::{
-    WriteBytesExt, 
-    ReadBytesExt, 
-    BigEndian
-};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use log::debug;
 
 pub struct Virtmachine {
@@ -34,21 +22,24 @@ pub struct Virtmachine {
 }
 
 impl Virtmachine {
-
-    pub fn new(memsize: usize) -> (Virtmachine, Receiver<char>, Receiver<u32>)  {
+    pub fn new(memsize: usize) -> (Virtmachine, Receiver<char>, Receiver<u32>) {
         //construct a new virtual machine
         debug!("Creating new Virtmachine with size {}", memsize);
         let (ctx, crx) = mpsc::channel();
         let (stx, srx) = mpsc::channel();
-        (Virtmachine {
-            mem: vec![0u32; memsize],
-            ip: 0u32,
-            ef: 0u32,
-            zf: 0u32,
-            of: 0u32,
-            charsender: ctx,
-            status_sender: stx,
-        }, crx, srx)
+        (
+            Virtmachine {
+                mem: vec![0u32; memsize],
+                ip: 0u32,
+                ef: 0u32,
+                zf: 0u32,
+                of: 0u32,
+                charsender: ctx,
+                status_sender: stx,
+            },
+            crx,
+            srx,
+        )
     }
 
     pub fn load(&mut self, filename: &str) {
@@ -72,15 +63,12 @@ impl Virtmachine {
         //start the VM
         debug!("Starting virtual machine with size {}", self.mem.len());
 
-
         let mut cycles = 0;
         while self.ef != 1 {
             cycles += 1;
             self.cycle();
             self.ip += 1; //increment instruction pointer
-            
         }
-
     }
 
     pub fn print_mem(&self, start: usize, end: usize) {
@@ -112,6 +100,7 @@ impl Virtmachine {
             0x08 => self.op_prn(oparray),
             0x09 => self.op_mul(oparray),
             0x0A => self.op_div(oparray),
+            0x0B => self.op_mop(oparray),
             _ => debug!("Unrecognized operation"),
         }
     }
@@ -149,7 +138,12 @@ impl Virtmachine {
                 self.set_mem(index, result + value);
             }
             None => {
-                debug!("Overflow when adding {:#010x} to [{:#010x}]({:#010x})", value, index, self.get_mem(index));
+                debug!(
+                    "Overflow when adding {:#010x} to [{:#010x}]({:#010x})",
+                    value,
+                    index,
+                    self.get_mem(index)
+                );
                 self.set_flag("of", 1);
             }
         }
@@ -164,12 +158,17 @@ impl Virtmachine {
                 }
             }
             None => {
-                debug!("Overflow when subtracting {:#010x} from [{:#010x}]({:#010x})", value, index, self.get_mem(index));
+                debug!(
+                    "Overflow when subtracting {:#010x} from [{:#010x}]({:#010x})",
+                    value,
+                    index,
+                    self.get_mem(index)
+                );
                 self.set_flag("of", 1);
             }
         }
     }
-    
+
     //Operations:
     fn op_eof(&mut self) {
         self.set_flag("ef", 1);
@@ -179,8 +178,14 @@ impl Virtmachine {
     fn op_mov(&mut self, oparray: Vec<u8>) {
         //move value from one address into another
         let dest = oparray[1] as usize;
-        let srcvalue = self.get_mem(oparray[2] as usize);
+        let srcvalue = self.get_mem(oparray[3] as usize);
         self.set_mem(dest, srcvalue);
+    }
+    fn op_mop(&mut self, oparray: Vec<u8>) {
+        //move value from one address into another, using src as a pointer
+        let dest = oparray[1] as usize;
+        let src = self.get_mem(self.get_mem(oparray[3] as usize) as usize);
+        self.set_mem(dest, src);
     }
     fn op_str(&mut self, oparray: Vec<u8>) {
         //store a literal constant into an address
@@ -205,7 +210,7 @@ impl Virtmachine {
         //the ip flag is set to the target address minus one because after the cycle finishes, the
         //ip will be incremented automatically
         let value = Virtmachine::compose_u32(vec![0x00, 0x00, 0x00, oparray[1] - 1]);
-        debug!("Jumping to {:#010x}", value+1);
+        debug!("Jumping to {:#010x}", value + 1);
         self.set_flag("ip", value);
     }
     fn op_jz(&mut self, oparray: Vec<u8>) {
@@ -235,13 +240,13 @@ impl Virtmachine {
         let dest = oparray[1] as usize;
         let destval = self.get_mem(oparray[1] as usize);
         let src = self.get_mem(oparray[3] as usize);
-        self.set_mem(dest, destval*src);
+        self.set_mem(dest, destval * src);
     }
     fn op_div(&mut self, oparray: Vec<u8>) {
         //divide the value in one address by the value in another address
         let dest = oparray[1] as usize;
         let destval = self.get_mem(oparray[1] as usize);
         let src = self.get_mem(oparray[3] as usize);
-        self.set_mem(dest, destval/src);
+        self.set_mem(dest, destval / src);
     }
 }

@@ -1,4 +1,3 @@
-#![feature(vec_remove_item)]
 
 use std::{
     env,

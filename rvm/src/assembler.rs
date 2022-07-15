@@ -75,6 +75,11 @@ const RAWDEFS: &str = r#"
                 "name": "div",
                 "code": 10,
                 "args": 2
+            },
+            {
+                "name": "mop",
+                "code": 11,
+                "args": 2
             }
         ]
     }"#;
@@ -199,7 +204,10 @@ impl Assembler {
         let re = Regex::new(r";.*").unwrap(); 
         let t2 = re.replace_all(input, "");
         let mut temp: Vec<&str> = t2.split(" ").collect();
-        temp.remove_item(&"");
+        //temp.remove_item(&"");
+        //let x = &"";
+        let index = temp.iter().position(|x| *x == "").unwrap();
+        temp.remove(index);
 
         debug!("{:?}", temp);
 

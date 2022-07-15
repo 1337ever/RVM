@@ -1,0 +1,26 @@
+str 252 72 ;H
+str 251 65 ;A
+str 250 67 ;C
+str 249 75 ;K
+str 248 32 ;spc
+str 247 84 ;T
+str 246 72 ;H
+str 245 69 ;E
+str 244 32 ;spc
+str 243 80 ;P
+str 242 76 ;L
+str 241 65 ;A
+str 240 78 ;N
+str 239 69 ;E
+str 238 84 ;T
+str 237 33 ;!
+str 236 10 ;\n
+str 200 252 ;store value to compare to
+str 199 236 ;the end of the string
+mop 253 200 ;move value in 200 to 253, using 200 as a pointer
+sui 200 1 ;subtract 1 from 200
+cmp 200 199 ;compare index vs the end of the string
+jz 25 0 ;
+prn 253 0 ;print value in 253
+jmp 18 0 ;
+eof ;exit

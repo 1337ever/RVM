@@ -1,14 +1,13 @@
-; Initializations
 str 255 10 ;\n
 str 254 20 ;number of times to multiply
-str 253 2
-str 252 2
-str 251 0
-cmp 254 251
-jz 12 0
-mul 253 252
-adi 251 1
-prn 253 0
-prn 255 0
-jmp 5 0
-eof
+str 253 2 ;
+str 252 2 ;
+str 251 0 ;
+cmp 254 251 ;
+jz 12 0 ;
+mul 253 252 ;
+adi 251 1 ;
+prn 253 0 ;
+prn 255 0 ;
+jmp 5 0 ;
+eof ;

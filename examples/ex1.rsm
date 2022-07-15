@@ -1,6 +1,6 @@
 str 253 65 ;A
 str 252 10 ;\n
-str 255 10 ;store value to compare to 
+str 255 255 ;store value to compare to 
 adi 254 1 ;increment counter by 1
 cmp 255 254 ;compare counter and reference
 jz 8 0 ;if they're equal, jump to address 6
